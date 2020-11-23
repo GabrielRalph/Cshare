@@ -357,6 +357,7 @@ class Module extends CodeBlockList{
         }
       }
     });
+    if (typedefs.size > 0) this.appendItem(typedefs);
     let global_defs = '';
     scopes.forEach((scope) => {
       if (scope.scope !== 'used') global_defs += scope.code;
@@ -369,7 +370,6 @@ class Module extends CodeBlockList{
       this.appendItem(globals);
     }
     if (methods.size > 0) this.appendItem(methods);
-    if (typedefs.size > 0) this.appendItem(typedefs);
 
   }
 }
