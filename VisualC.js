@@ -364,6 +364,8 @@ class Module extends CodeBlockList{
     });
     if (global_defs.length > 0) {
       global_defs = global_defs.replace(/^\s*/gm, '');
+      global_defs = global_defs.replace(/</g, '&#60;');
+      global_defs = global_defs.replace(/>/g, '&#62;');
       let global_pre = new Highlights('pre');
       global_pre.pre = global_defs;
       globals.appendItem(global_pre);
