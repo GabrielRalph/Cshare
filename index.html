@@ -2,281 +2,138 @@
 <html>
   <head>
     <title>A3</title>
-    <link href="https://fonts.googleapis.com/css2?family=Anonymous+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@500;600;700;900&display=swap" rel="stylesheet">
     <script src= "https://www.gstatic.com/firebasejs/7.14.4/firebase.js"></script>
     <script src = "https://www.svg.plus/2.js"></script>
     <script src = "https://www.svg.plus/vector.js"></script>
-    <script src = "./Loader.js"></script>
     <script src = "./Highlights.js"></script>
-    <script src = "./Doxygen.js"></script>
-    <script src = "./DoxyList.js"></script>
-    <script src = "./DoxyPre.js"></script>
-    <script src = "./DoxyFire.js"></script>
-    <script src = "./CshareControls.js"></script>
-    <script src = "./Syntax.js"></script>
+    <script src = "./FireCShare.js"></script>
+    <script src = "./VisualC.js"></script>
+    <script src = "./CParse.js"></script>
   </head>
   <body>
-    <pre id = "test" contenteditable="true">
-
-    </pre>
   </body>
 <script>
-  var s = new Syntax('test');
-  var cc = new Controls('div');
-  document.body.appendChild(cc);
+let fireCShare = new FireCShare('MTRXMP');
+let project = new Project('div');
+
+let startWatching = async () => {
+  let docs = await fireCShare.watchCFiles();
+  project.cFiles = docs;
+}
+startWatching()
+document.body.appendChild(project);
+// console.log(method.__proto__);
 
 </script>
 <style>
-
+/* @import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@500;700;900&display=swap'); */
+pre {
+  font-family: 'Inconsolata', monospace;
+  font-weight: 500;
+  margin: 4px;
+}
 body{
-  --col-f: 71;
-  --col-s: 220;
-  --col-t: 200;
-  --col-field: 250;
-  --col-strings: 150;
-  color:white;
+  --background: #FFFBF8;
+  --type-theme: 270;
+  font-family: 'Inconsolata', monospace;
+
+  background: var(--background);
+}
+.joysticks{
+  --theme: 30;
+}
+.lcd{
+  --theme: 190;
+}
+.globals{
+  --theme: 20;
+}
+.functions{
+  --theme: 330;
+}
+.pragma{
+  --theme: 350;
+}
+.menu{
+  --theme: 230;
+}
+.typedefs{
+  --theme: 280;
+}
+div.list {
+  border: 2px solid hsl(var(--theme), 100%, 50%);
+  position: relative;
+  margin-top: 30px;
+  padding: 10px;
+  border-radius: 14px;
+}
+
+.list h2{
   margin: 0;
-  padding: 0;
-  margin-top: 60px;
-}
-
-#cc-controls h1{
-  margin: 2px 0;
-  display: inline;
-  font-size: 35px;
-}
-
-#cc-controls{
-  position: fixed;
-  top: 10px;
+  position: absolute;
+  top: 0;
   left: 10px;
-  right: 10px;
-  height: 35px;
-}
-#cc-controls input{
-  height: 100%;
-  padding: 0 10px;
-  line-height: 100%;
-  border-radius: 25px;
-  outline: none;
-  background: black;
-  font-size: 25px;
-}
-
-.btn{
-  border-radius: 20px;
-  width: 40px;
-  float: right;
-  margin-left: 10px;
-}
-
-#cc-controls input, #cc-controls div{
-  border-radius: 25px;
-  color: white;
-  font-family: 'Anonymous Pro', monospace;
-  border: 2px solid white;
-
-}
-
-#room div{
-  height: 36px;
-  padding: 0 10px;
-  font-size: 20px;
-  cursor: pointer;
-  line-height: 36px;
-  display: inline;
-}
-
-#add{
-  font-size: 30px;
-  padding-bottom: 5px;
-  line-height: 35px;
-  padding-left: 2px;
-  width: 38px;
-  text-align: center;
-  position: fixed;
-  top: 10px;
-  right: 10px;
+  padding: 0 5px;
+  transform: translate(0, -60%);
+  background: var(--background);
+  font-weight: 900;
+  color: hsl(var(--theme), 100%, 50%);
   cursor: pointer;
 }
-input.hidden{
-  display: none;
+.doxygen-tag{
+  --theme: 300;
+  padding-left: 20px;
+}
+b{
+  color: hsl(var(--theme), 100%, 50%);
+}
+b.macros{
+  --theme: 210;
+  color: hsl(var(--theme), 100%, 50%);
+  font-weight: 900;
+}
+b.key{
+  color: hsl(var(--theme), 100%, 50%);
 }
 
-  h1{
-    font-family: monospace;;
-    font-size: 20px;
-  }
-  pre{
-    font-family: 'Anonymous Pro', monospace;
-    border-radius: 15px;
-    color: white;
-  }
+b.type{
+  color: hsl(var(--type-theme), 100%, 50%);
+}
 
-  table{
-    width: 100%;
-  }
+b.custom-type{
+  color: hsl(var(--type-theme), 50%, 50%);
+}
 
-  .doxygen h1{
-    cursor: pointer;
-    user-select: none;
-  }
+b.name{
+  color: hsl(var(--theme), 100%, 30%);
+}
 
-  /* arrow td */
-  tr td:last-of-type{
-    width: 20px;
-    vertical-align: top;
-  }
-  .doxygen{
-    --function-box-theme: 71;
-    --struct-box-theme: 40;
-    --union-box-theme: 150;
-    --defines-box-theme: 30;
-    --types-theme: 195;
-    --typedefs-theme: 215;
-    --key-words-theme: 290;
-    --comments-theme: 0.3;
-    --field-theme: 40;
-    --string-theme: 340;
-    --digit-theme: 20;
-    --globals-theme: 50;
-    --param-theme: 270;
-    --define-theme: 30;
-    --code-theme: 250;
-    overflow: scroll;
-    padding: 0px 10px;
-  }
-  pre b{
-    /* font-style: italic; */
-    font-weight: 300;
-  }
-
-
-  .function-box{
-    --theme: var(--function-box-theme);
-  }
-  .struct-box{
-    --theme: var(--struct-box-theme);
-  }
-  .union-box{
-    --theme: var(--union-box-theme);
-  }
-  .defines-box{
-    --theme: var(--defines-box-theme);
-  }
-  .globals-box{
-    --theme: var(--globals-theme);
-  }
-  .code-box{
-    --theme: var(--code-theme);
-  }
-
-  .doxy-list{
-    --spacing: 10px;
-    padding: var(--spacing);
-    border-radius: 25px;
-    margin-bottom: 20px;
-    /* border-collapse: collapse; */
-    border-spacing: 0 0;
-    border: 2px solid hsl(var(--theme), 25%, 25%);
-  }
-
-  .doxy-list th{
-    color: hsl(var(--theme), 80%, 50%);
-    font-family: 'Anonymous Pro', monospace;
-    padding-bottom: 5px;
-  }
-
-  .doxy-list pre{
-    border: 2px solid hsl(var(--theme), 20%, 20%);
-    padding: 5px 10px;
-    margin: 0;
-  }
-  .doxy-list td{
-    padding-top: var(--spacing);
-  }
-  .doxy-list tr:first-of-type td{
-    margin-top: 0;
-  }
-
-  /* .struct-box pre, .struct-box{border: 2px solid hsl(var(--col-s), 20%, 20%);}
-  .union-box pre, .union-box{border: 2px solid hsl(var(--col-u), 20%, 20%);}
-  .function-box pre, .struct-box pre, .union-box pre, .global-box pre, .defines-box pre{
-    padding: 6px 10px;
-    margin: 0;
-  } */
-  .up{
-    border-bottom: 10px solid hsl(var(--theme), 80%, 50%);
-  }
-  .down{
-    border-top: 10px solid hsl(var(--theme), 80%, 50%);
-  }
-  .button{
-    width: 0;
-    height: 0px;
-    border-left: 7px solid transparent;
-    border-right: 7px solid transparent;
-    vertical-align: top;
-    margin-top: 10px;
-    margin-left: 5px;
-    cursor: pointer;
-  }
-
-  .global-box pre{
-    margin: 0;
-    padding: 1px;
-  }
-  .global-box{
-    border-radius: 15px;
-    border: 2px solid #5b878e;
-  }
-  pre .types {
-    color: hsl(var(--types-theme), 80%, 50%);
-  }
-  pre .typedefs {
-    color: hsl(var(--typedefs-theme), 80%, 50%);
-  }
-  pre .key-words {
-    color: hsl(var(--key-words-theme), 80%, 70%);
-  }
-  pre .comments{
-    color: rgba(255,255,255,var(--comments-theme));
-  }
-  pre .field{
-    color: hsl(var(--field-theme), 80%, 80%);
-  }
-  pre .before-field{
-    color: hsl(var(--field-theme), 80%, 70%);
-  }
-  pre .chars{
-    color: hsl(var(--string-theme), 100%, 90%);
-  }
-  pre .strings{
-    color: hsl(var(--string-theme), 100%, 80%);
-  }
-  pre .digits{
-    color: hsl(var(--digit-theme), 80%, 50%);
-  }
-  pre .function-names {
-    color: hsl(var(--function-box-theme), 80%, 50%);
-  }
-  pre .globals{
-    color: hsl(var(--globals-theme), 80%, 50%);
-  }
-  pre .param{
-    color: hsl(var(--param-theme), 100%, 85%);
-  }
-  pre .function-use{
-    color: hsl(var(--function-box-theme), 100%, 70%);
-  }
-  pre .defines{
-    color: hsl(var(--define-theme), 100%, 55%);
-  }
-  pre .defines-title{
-    color: hsl(var(--define-theme), 80%, 50%);
-  }
-  body{
-    background: black;
-  }
+.code-block{
+  border: 2px solid hsla(var(--theme), 100%, 50%, 0.5);
+  border-radius: 14px;
+  margin: 1em 0 0 0;
+  padding: 0.75em 14px;
+  position: relative;
+}
+div div.code-block:nth-of-type(n + 2){
+  margin-top: 2em;
+}
+.code-block pre{
+  margin: 0;
+  margin-top: 0.5em;
+}
+.code-block h1{
+  font-size: 1.2em;
+  line-height: 1.3em;
+  padding: 0 5px;
+  margin: 0;
+  background: var(--background);
+  position: absolute;
+  top: 0;
+  left: 10px;
+  transform: translateY(-50%);
+}
 </style>
 </html>

@@ -1,16 +1,81 @@
+class Highlighter{
+  types = ["char", "const", "double", "enum", "float", "int", "long", "short", "signed", "static", "struct", "typedef", "union", "unsigned", "void", "volatile"];
+  keyWords = ["auto", "break", "case", "continue", "default", "do", "else", "extern", "for", "goto", "if", "register", "return", "sizeof", "switch", "while"];
+  constructor(){
+    this._customTypes = [];
+    this._customFunctions = [];
+    this._globalVariables = [];
+    this._highlights = [];
+  }
+
+
+
+  get customTypes(){
+    return this._customTypes;
+  }
+  get customFunctions(){
+    return this._customFunctions;
+  }
+  get globalVariables(){
+    return this._globalVariables;
+  }
+
+  addHighlight(highlight){
+    this._highlights.push(highlight);
+  }
+
+  addCustomType(type){
+    if (typeof type !== 'string') return;
+    this._customTypes.push(type);
+    this.update();
+  }
+
+  addCustomFunction(func){
+    if (typeof func !== 'string') return;
+    this._customFunctions.push(func);
+    this.update();
+  }
+
+  addCustomVariable(variable){
+    if (typeof variable !== 'string') return;
+    this._globalVariables.push(variable);
+    this.update();
+  }
+
+  update(){
+    this._highlights.forEach((highlight) => {
+      if (highlight && highlight.update instanceof Function) highlight.update();
+    });
+  }
+}
+
+var HIGHLIGHTER = new Highlighter();
 
 class Highlights extends SvgPlus{
   build(){
+    HIGHLIGHTER.addHighlight(this);
   }
   get pre(){
     return this._pre;
   }
-  
+
+  highlighter(){
+      this.highlightKeywords(HIGHLIGHTER.types, 'type');
+      this.highlightKeywords(HIGHLIGHTER.keyWords, 'keyword');
+      this.highlightKeywords(HIGHLIGHTER.customTypes, 'custom-type');
+      this.highlightKeywords(["#define"], 'macros');
+      this.highlightKeywords(["#pragma"], 'pragma');
+  }
+
 
   set pre(string){
     if (typeof string !== 'string') return;
     this.highlights = [];
     this._pre = string;
+    this.update();
+  }
+
+  update(){
     if (this.highlighter instanceof Function) this.highlighter();
     this.innerHTML = this.toString();
   }
@@ -21,17 +86,12 @@ class Highlights extends SvgPlus{
 
     const matches = this.pre.matchAll(regex);
     for (const match of matches){
-      // if (elClass === "digits") console.log(match);
-
       if (match[group_num] && match[group_num].length !== 0){
         let s_index = match.index + match[0].indexOf(match[group_num]);
         let e_index = s_index + match[group_num].length;
         try{
           this.addHighlight(s_index, e_index, elClass);
         }catch(e){
-          // console.log(e);
-          // console.log(match,s_index, e_index, elClass);
-          // console.log(this.highlights)
         }
       }
     }
