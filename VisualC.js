@@ -1,5 +1,15 @@
+const firebaseConfig = {
+  apiKey: "AIzaSyDniS0prRjEmOyKbMd4jequo9gkwe2otKI",
+  authDomain: "fashion-galetora.firebaseapp.com",
+  databaseURL: "https://fashion-galetora.firebaseio.com",
+  projectId: "fashion-galetora",
+  storageBucket: "fashion-galetora.appspot.com",
+  messagingSenderId: "469438762797",
+  appId: "1:469438762797:web:759f543ce82183b9f04da4",
+  measurementId: "G-Q7DJ37H3D0"
+};
+firebase.initializeApp(firebaseConfig);
 let syntax = new CSyntax();
-
 /*
 CodeBlock is a div element that displays text in a pre element,
 pre elements are used for code display.
