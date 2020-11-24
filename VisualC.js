@@ -493,21 +493,31 @@ class InputPlus extends SvgPlus{
 }
 class Project extends SvgPlus{
   build(){
+    this.props = {
+      class: "project"
+    }
     // this.input = new InputPlus('input');
     // this.input.props = {
     //   type: 'file'
     // }
+
   }
   set ref(val){
     if (typeof val !== 'string') return;
+    this._refName = val;
     this._ref = firebase.database().ref('/tron/' + val);
     this._ref.on('value', (sc) => {
       this.cFiles = sc.val();
     })
   }
+
+  get refName(){
+    return this._refName;
+  }
+
   set cFiles(object){
     this.innerHTML = '';
-    this.appendChild(this.input);
+    this.createChild('h1').innerHTML = this.refName;
     if (typeof object !== 'object') return;
     for (var name in object){
         let mod = object[name];

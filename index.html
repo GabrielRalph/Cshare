@@ -1,27 +1,33 @@
 <!doctype html>
 <html>
   <head>
-    <title>A3</title>
+    <title>MTRX3700 MP</title>
     <link rel="preconnect" href="https://fonts.gstatic.com">
     <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@500;600;700;900&display=swap" rel="stylesheet">
     <script src= "https://www.gstatic.com/firebasejs/7.14.4/firebase.js"></script>
     <script src = "https://www.svg.plus/2.js"></script>
     <script src = "https://www.svg.plus/vector.js"></script>
     <script src = "./Highlights.js"></script>
-    <script src = "./FireCShare.js"></script>
+    <!-- <script src = "./FireCShare.js"></script> -->
     <script src = "./VisualC.js"></script>
-    <script src = "./CParse.js"></script>
   </head>
   <body>
   </body>
 <script>
 // let fireCShare = new FireCShare('MTRXMP');
-let controller = new Project('div');
-controller.ref = 'controller';
-let robot = new Project('div');
-robot.ref = 'robot';
-document.body.appendChild(controller);
-document.body.appendChild(robot);
+window.addEventListener('error', (e) => {
+  console.log(e.message);
+  alert(e.message);
+})
+window.onload = () => {
+
+  let controller = new Project('div');
+  controller.ref = 'controller';
+  let robot = new Project('div');
+  robot.ref = 'robot';
+  document.body.appendChild(controller);
+  document.body.appendChild(robot);
+}
 
 // let startWatching = async () => {
 //   let docs = await fireCShare.watchCFiles();
@@ -85,6 +91,9 @@ div.list {
 }
 .encoders{
   --theme: 210;
+}
+.project > h1{
+  text-transform: capitalize;
 }
 .list h2{
   margin: 0;
