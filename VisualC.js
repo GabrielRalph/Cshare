@@ -388,7 +388,6 @@ class Module extends CodeBlockList{
               if (pragma_match != null){
                 method.pragmaEnd = pragma_match[1];
                 scopes[i + 2].code = scopes[i + 2].code.replace(pragma_match[0], '');
-                console.log(m_matches);
 
               }
             }
@@ -451,8 +450,6 @@ class Module extends CodeBlockList{
 class InputPlus extends SvgPlus{
 
   async oninput(e){
-    console.log('x');
-    console.log(e);
     let files = await this.readFiles(event.target.files);
     files.forEach((file) => {
       let fire_name = file.name.replace(/\./g, '_');
@@ -524,7 +521,6 @@ class Project extends SvgPlus{
         let module = new Module('div');
         module.heading = mod.name;
         module.parser(mod.code);
-        console.log(module);
         this.appendChild(module)
     }
   }
