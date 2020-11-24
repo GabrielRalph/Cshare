@@ -407,14 +407,21 @@ class Module extends CodeBlockList{
 
 
 class Project extends SvgPlus{
+  build(){
+    this.ref = firebase.database().ref('/tron/controller');
+    this.ref.on('value', (sc) => {
+      this.cFiles = sc.val();
+    })
+  }
   set cFiles(object){
     this.innerHTML = '';
     if (typeof object !== 'object') return;
     for (var name in object){
+        let mod = object[name];
         let module = new Module('div');
-        module.heading = name;
-
-        module.parser(object[name]);
+        module.heading = mod.name;
+        module.parser(mod.code);
+        console.log(module);
         this.appendChild(module)
     }
   }

@@ -15,15 +15,15 @@
   <body>
   </body>
 <script>
-let fireCShare = new FireCShare('MTRXMP');
+// let fireCShare = new FireCShare('MTRXMP');
 let project = new Project('div');
-
-let startWatching = async () => {
-  let docs = await fireCShare.watchCFiles();
-  project.cFiles = docs;
-}
-startWatching()
 document.body.appendChild(project);
+
+// let startWatching = async () => {
+//   let docs = await fireCShare.watchCFiles();
+//   project.cFiles = docs;
+// }
+// startWatching()
 // console.log(method.__proto__);
 
 </script>
