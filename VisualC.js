@@ -493,10 +493,10 @@ class InputPlus extends SvgPlus{
 }
 class Project extends SvgPlus{
   build(){
-    this.input = new InputPlus('input');
-    this.input.props = {
-      type: 'file'
-    }
+    // this.input = new InputPlus('input');
+    // this.input.props = {
+    //   type: 'file'
+    // }
   }
   set ref(val){
     if (typeof val !== 'string') return;
