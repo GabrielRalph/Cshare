@@ -1,82 +1,131 @@
-class Highlighter{
-  types = ["char", "const", "double", "enum", "float", "int", "long", "short", "signed", "static", "struct", "typedef", "union", "unsigned", "void", "volatile"];
-  keyWords = ["auto", "break", "case", "continue", "default", "do", "else", "extern", "for", "goto", "if", "register", "return", "sizeof", "switch", "while"];
+class Syntax{
   constructor(){
-    this._customTypes = [];
-    this._customFunctions = [];
-    this._globalVariables = [];
-    this._highlights = [];
+    this._keyword_map = {};
+    this._highlighters = [];
+  }
+
+  makeHighlighter(element){
+    let highlighter = new Highlighter(element);
+    highlighter.syntax = this;
+    this.addHighlighter(highlighter);
+    return highlighter;
+  }
+
+  /** add, adds key names to the key name map.  */
+  add(type, name){
+    if (typeof type != 'string') return;
+    this._keyword_map[type] = (type in this._keyword_map) ? this._keyword_map[type] : [];
+
+    //If name is an array then check it for strings.
+    if (name instanceof Array){
+      name.forEach((singleName) => {
+        if (typeof singleName == 'string'){
+          this._keyword_map[type].push(singleName);
+        }
+      });
+      this.update();
+
+    //Otherwise if it is a string push it to the map.
+    }else if(typeof name == 'string'){
+      this._keyword_map[type].push(name);
+      this.update();
+    }
+  }
+
+  /** search for every keyword and call a callback function */
+  forEachKeyword(callback){
+    if ( callback instanceof Function ){
+      for (var type in this._keyword_map){
+        for (var i = 0; i < this._keyword_map[type].length; i++){
+          callback(type, this._keyword_map[type][i]);
+        }
+      }
+    }
   }
 
 
-
-  get customTypes(){
-    return this._customTypes;
-  }
-  get customFunctions(){
-    return this._customFunctions;
-  }
-  get globalVariables(){
-    return this._globalVariables;
+  /** addHighlighter adds a Highlighter to the highlighters list */
+  addHighlighter(highlighter){
+    if (!(highlighter instanceof Highlighter)) return;
+    this._highlighters.push(highlighter);
+    highlighter.syntax = this;
   }
 
-  addHighlight(highlight){
-    this._highlights.push(highlight);
-  }
 
-  addCustomType(type){
-    if (typeof type !== 'string') return;
-    this._customTypes.push(type);
-    this.update();
-  }
-
-  addCustomFunction(func){
-    if (typeof func !== 'string') return;
-    this._customFunctions.push(func);
-    this.update();
-  }
-
-  addCustomVariable(variable){
-    if (typeof variable !== 'string') return;
-    this._globalVariables.push(variable);
-    this.update();
-  }
-
+  /** update highlighter */
   update(){
-    this._highlights.forEach((highlight) => {
-      if (highlight && highlight.update instanceof Function) highlight.update();
+    this._highlighters.forEach((highlighter) => {
+      highlighter.update();
     });
   }
 }
 
-var HIGHLIGHTER = new Highlighter();
+class CSyntax extends Syntax{
+  static types = ["char", "const", "double", "enum", "float", "int", "long", "short", "signed", "static", "struct", "typedef", "union", "unsigned", "void", "volatile"];
+  static keyWords = ["auto", "break", "case", "continue", "default", "do", "else", "extern", "for", "goto", "if", "register", "return", "sizeof", "switch", "while"];
+  constructor(){
+    super();
+    this.add('type', CSyntax.types);
+    this.add('key', CSyntax.keyWords);
+  }
 
-class Highlights extends SvgPlus{
+  highlight(highlighter){
+    highlighter.highlightRegex(/\/\/[\n]*/g, 'comments');
+    highlighter.highlightRegex(/\/\/.*/g, 0, "comments");
+    highlighter.highlightRegex(/\/\*([^\\]*?)\*\//g, 0, "comments");
+    highlighter.highlightRegex(/'\w'/g, 0, "chars");
+    highlighter.highlightRegex(/\"[^"]*\"/g, 0, "strings");
+    highlighter.highlightRegex(/\W(\d+)\W/g, 1, "digits");
+  }
+}
+
+class Highlighter extends SvgPlus{
   build(){
-    HIGHLIGHTER.addHighlight(this);
-  }
-  get pre(){
-    return this._pre;
+    this.clearHighlights();
   }
 
-  highlighter(){
-      this.highlightKeywords(HIGHLIGHTER.types, 'type');
-      this.highlightKeywords(HIGHLIGHTER.keyWords, 'keyword');
-      this.highlightKeywords(HIGHLIGHTER.customTypes, 'custom-type');
-      this.highlightKeywords(["#define"], 'macros');
-      this.highlightKeywords(["#pragma"], 'pragma');
+  set syntax(syntax){
+    if (syntax instanceof Syntax){
+      this._syntax = syntax;
+    }
   }
 
+  get syntax(){
+    return this._syntax;
+  }
 
-  set pre(string){
-    if (typeof string !== 'string') return;
+  highlightSyntax(){
+    if (this.syntax){
+
+      this.syntax.forEachKeyword((type, name) => {
+        let regex = new RegExp(`\\W(${name})\\W`, 'g');
+        this.highlightRegex(regex, 1, type);
+
+        regex = new RegExp(`^(${name})\\W`, 'g');
+        this.highlightRegex(regex, 1, type);
+      });
+    }
+  }
+
+  clearHighlights(){
     this.highlights = [];
-    this._pre = string;
-    this.update();
+  }
+
+  get html(){
+    return this._html;
+  }
+
+  set html(string){
+    if (typeof string === 'string') {
+      this._html = string;
+      this.update();
+    }
   }
 
   update(){
-    if (this.highlighter instanceof Function) this.highlighter();
+    this.clearHighlights();
+    this.syntax.highlight(this);
+    this.highlightSyntax();
     this.innerHTML = this.toString();
   }
 
@@ -84,7 +133,7 @@ class Highlights extends SvgPlus{
     if (!(regex instanceof RegExp)) return;
     if (group_num < 0) return;
 
-    const matches = this.pre.matchAll(regex);
+    const matches = this.html.matchAll(regex);
     for (const match of matches){
       if (match[group_num] && match[group_num].length !== 0){
         let s_index = match.index + match[0].indexOf(match[group_num]);
@@ -96,21 +145,6 @@ class Highlights extends SvgPlus{
       }
     }
   }
-
-  highlightKeywords(keyWords, elClass){
-    if (!keyWords.length) return null;
-    for (var i = 0; i < keyWords.length; i++){
-      var keyword = keyWords[i];
-      if (typeof keyword === 'string'){
-        let regex = new RegExp(`\\W(${keyword})\\W`, 'g');
-        this.highlightRegex(regex, 1, elClass);
-
-        regex = new RegExp(`^(${keyword})\\W`, 'g');
-        this.highlightRegex(regex, 1, elClass)
-      }
-    }
-  }
-
 
   _sort(){
     this.highlights.sort((a, b) => {
@@ -158,21 +192,22 @@ class Highlights extends SvgPlus{
     if (typeof startIndx !== 'number' || Number.isNaN(startIndx)) throw '' + new PlusError('Highlight start index not a number');
     if (typeof endIndx !== 'number' || Number.isNaN(endIndx)) throw '' + new PlusError('Highlight end index not a number');
 
-    if (startIndx < 0 || startIndx > endIndx || startIndx >= this.pre.length) throw '' + new PlusError('Highlight start index out of bounds');
-    if (endIndx < 0 || endIndx == startIndx || endIndx >= this.pre.length) throw '' + new PlusError('Highlight end index out of bounds');
+    if (startIndx < 0 || startIndx > endIndx || startIndx >= this.html.length) throw '' + new PlusError('Highlight start index out of bounds');
+    if (endIndx < 0 || endIndx == startIndx || endIndx >= this.html.length) throw '' + new PlusError('Highlight end index out of bounds');
 
     var highlight = {start: startIndx, end: endIndx, elClass:elClass};
     if (!this._search(highlight)) throw '' + new PlusError(`text is already being highlight [${startIndx}, ${endIndx}]`)
     this.highlights.push(highlight);
+
     this.innerHTML = this.toString();
   }
 
   toString(){
     this._sort();
-    let newString = this.pre;
+    let newString = this.html;
+
     for (var i = this.highlights.length - 1; i >= 0; i--){
       let highlight = this.highlights[i];
-
       let left = newString.slice(0, highlight.start);
       let mid = newString.slice(highlight.start, highlight.end);
       let right = newString.slice(highlight.end, newString.length);

@@ -1,3 +1,5 @@
+let syntax = new CSyntax();
+
 /*
 CodeBlock is a div element that displays text in a pre element,
 pre elements are used for code display.
@@ -14,43 +16,86 @@ any thing that can be displayed as a string.
 class CodeBlock extends SvgPlus{
 
   build(){
-    this._header = new Highlights('h1');
+    this._eye = new Eye('svg');
+    this.appendChild(this._eye);
+    this._eye.addEventListener('click', () => {
+      this.display = !this.display;
+    }, true)
+
+    this._header = syntax.makeHighlighter('h1');
+    this._header.addEventListener('click', () => {
+      this.expanded = !this.expanded;
+    })
+    this._bodyPre = syntax.makeHighlighter('pre');
+    this._doxyPre = this.createChild('pre');
+    this.display = false;
+
     this.appendChild(this._header);
-    this._pre = this.createChild('pre');
     this._expanded = true;
-    this._mode_index = 0;
     this.props = {
       class: 'code-block'
     }
+  }
+
+  set header(val){
+    this._header.html = val;
+  }
+
+  set bodyPre(val){
+    this._bodyPre.html = val;
+  }
+  set doxyPre(val){
+    this._doxyPre.innerHTML = val;
+  }
+
+  update(){
+    this.header = this.head;
+    this.bodyPre = this.codeBody;
+    this.doxyPre = this.doxygenComments;
+  }
+
+  set display(val){
+    if (val){
+      if (this.contains(this._doxyPre)){
+        this.removeChild(this._doxyPre);
+      }
+      if (!this.contains(this._bodyPre)){
+        this.appendChild(this._bodyPre);
+        this._display = true;
+      }
+    }else{
+      if (this.contains(this._bodyPre)){
+        this.removeChild(this._bodyPre);
+      }
+      if (!this.contains(this._doxyPre)){
+        this.appendChild(this._doxyPre);
+        this._display = false;
+      }
+    }
+    this.update();
+  }
+
+  get display(){
+    return this._display;
   }
 
   set expanded(value){
     if (value){
       if (this._expanded) return;
       this._expanded = true;
-      if (this.contains(this._pre)) return;
-      this.appendChild(this._pre);
+      if (this.display) this.appendChild(this._bodyPre);
+      if (!this.display) this.appendChild(this._doxyPre);
     }else{
       if (!this._expanded) return;
       this._expanded = false;
-      if (!this.contains(this._pre)) return;
-      this.removeChild(this._pre);
+      if (this.contains(this._doxyPre)) this.removeChild(this._doxyPre);
+      if (this.contains(this._bodyPre)) this.removeChild(this._bodyPre);
     }
+    this.update();
+
   }
   get expanded(){
     return this._expanded;
-  }
-
-  static isString(string){
-    if (typeof string === 'string') return true;
-    if (typeof string !== 'object') return false;
-    if (!(string.toString instanceof Function)) return false;
-    if (typeof string.toString() === 'string') return true;
-    return false;
-  }
-
-  onclick(){
-    this.expanded = !this.expanded;
   }
 
   set class(className){
@@ -68,13 +113,17 @@ class CodeBlock extends SvgPlus{
 
   set body(body){
     this._body = body;
+    this.update();
   }
   get body(){
     return this._body;
+
   }
 
   set type(type){
     this._type = type;
+    this.update();
+
   }
   get type(){
     return this._type;
@@ -82,6 +131,8 @@ class CodeBlock extends SvgPlus{
 
   set name(name){
     this._name = name;
+    this.update();
+
 
   }
   get name(){
@@ -90,6 +141,8 @@ class CodeBlock extends SvgPlus{
 
   set params(params){
     this._params = params;
+    this.update();
+
   }
 
   get params(){
@@ -101,16 +154,8 @@ class CodeBlock extends SvgPlus{
   }
   set value(value){
     this._value = value;
-  }
+    this.update();
 
-  set mode(mode){
-    this._mode = mode;
-    this._header.pre = this.head;
-    this._pre.innerHTML = this[mode];
-  }
-
-  get mode(){
-    return this._mode;
   }
 }
 
@@ -130,19 +175,12 @@ function parseDoxygen(doxygen){
 
 
 class Method extends CodeBlock{
-  build(){
-    this.modeNames = [
-      "doxygenComments",
-      "expanded",
-    ];
-    this.mode = 0;
-  }
   get head(){
-    return `<b class = "type">${this.type}</b> ${this.name}(${this.params});`
+    return `${this.type} ${this.name}(${this.params});`
   }
 
-  get expanded(){
-    return `${this.type} ${this.name}(${this.params}){${this.body}}`
+  get codeBody(){
+    return `${this.type} ${this.name}(${this.params})${this.body}`
   }
 
   get doxygenComments(){
@@ -151,21 +189,12 @@ class Method extends CodeBlock{
 }
 
 class Typedef extends CodeBlock{
-  build(){
-    this.modeNames = [
-      "head",
-      "expanded",
-      "doxygenComments",
-    ];
-    this.mode = 0;
-  }
-
   get head(){
-    return `<b class = "key">typedef</b> ${this.type} ${this.name};`
+    return `typedef ${this.type} ${this.name};`
   }
 
-  get expanded(){
-    return `<b class = "key">typedef</b> ${this.type}{${this.body}}${this.name};`
+  get codeBody(){
+    return `typedef ${this.type}${this.body}${this.name};`
   }
 
   get doxygenComments(){
@@ -196,12 +225,12 @@ class CodeBlockList extends SvgPlus{
   }
 
   set class(className){
-    if (!CodeBlock.isString(className)) return;
+    if (typeof className !== 'string') return;
     this.props = {class: "list " + className}
   }
 
   set heading(heading){
-    if (!CodeBlock.isString(heading)) return;
+    if (typeof heading !== 'string') return;
     this.class = ('' + heading).toLowerCase().replace(".c", "");
     this.heading_h2.innerHTML = '' + heading;
   }
@@ -343,12 +372,12 @@ class Module extends CodeBlockList{
               scopes[i].code = scopes[i].code.replace(t_matches[0], '');
               scopes[i + 2].code = scopes[i + 2].code.replace(t_end_matches[0], '');
               scopes[i + 1].scope = 'used';
-
               let typedef = new Typedef('div');
+              typedef.body = scopes[i + 1].code;
               typedef.doxygen = t_matches[2];
               typedef.type = t_matches[3];
               typedef.name = t_end_matches[1];
-              HIGHLIGHTER.addCustomType(t_end_matches[1]);
+              syntax.add('custom-type',t_end_matches[1]);
               typedef.mode = "doxygenComments";
               typedefs.appendItem(typedef);
               return;
@@ -366,8 +395,8 @@ class Module extends CodeBlockList{
       global_defs = global_defs.replace(/^\s*/gm, '');
       global_defs = global_defs.replace(/</g, '&#60;');
       global_defs = global_defs.replace(/>/g, '&#62;');
-      let global_pre = new Highlights('pre');
-      global_pre.pre = global_defs;
+      let global_pre = syntax.makeHighlighter('pre');
+      global_pre.html = global_defs;
       globals.appendItem(global_pre);
       this.appendItem(globals);
     }
@@ -395,9 +424,112 @@ class Project extends SvgPlus{
 }
 
 
-/*
-Notes
+class Eye extends SvgPlus{
+  build(){
+    this.r = 10;
+    this.pRatio = 0.4;
+    this.phi = Math.PI/5;
+    this.dt = 0;
+    this.eye = new SvgPath('path');
+    this.appendChild(this.eye);
+    this.drawing = true;
+    this.props = {
+      viewBox: "-11 -11 22 22",
+      transform: "rotate(90)"
+    }
 
-do bracket shearch, split into bodys, look behind bodys to get type and name,
 
-*/
+  }
+
+
+
+  set r(val){
+    if (typeof val != 'number'){
+      val = parseFloat(val);
+      if (Number.isNaN(val)) return;
+    }
+    this._r = val;
+  }
+  get r(){
+    return this._r;
+  }
+
+  set pRatio(val){
+    if (typeof val != 'number'){
+      val = parseFloat(val);
+      if (Number.isNaN(val)) return;
+    }
+    this._pRatio = val;
+  }
+  get pRatio(){
+    return this._pRatio;
+  }
+
+
+  set phi(val){
+    if (typeof val != 'number'){
+      val = parseFloat(val);
+      if (Number.isNaN(val)) return;
+    }
+    this._phi = val;
+  }
+  get phi(){
+    return this._phi;
+  }
+
+  set drawing(val){
+    //if drawing is toggled high.
+    if ((!!val) && !this.drawing){
+      if (!('_time' in this))this._time = 0;
+
+      //Call starting occurence
+      this._drawing = true;
+      window.requestAnimationFrame((time) => { this.onAnimationFrame(time); })
+
+    //if drawing is toggled low.
+    }else if((!val) && this.drawing){
+      this._lastTime = null;
+      this._drawing = false;
+    }
+  }
+
+  onAnimationFrame(time){
+    if (this.drawing){
+      this.draw(time);
+
+      window.requestAnimationFrame((time2) => { this.onAnimationFrame(time2); })
+    }
+  }
+
+  get drawing(){
+    return this._drawing
+  }
+
+  onclick(){
+    this.drawing = !this.drawing;
+  }
+
+  draw(dt){
+    dt = this._time;
+    this._time += 1;
+    let theta = dt/17;
+    let theta2 = this._time/17;
+
+    let phi = this.phi * ( Math.cos(theta)*-1 + 1 ) / 2;
+    if ( (Math.sin(theta) < 0 && Math.sin(theta2) > 0) || (Math.sin(theta) > 0 && Math.sin(theta2) < 0) ){
+      this.drawing = false;
+    }
+
+    let pupilCenter = new Vector(0, this.r)
+    let radius = new Vector(0, this.r);
+    this.eye.clear();
+
+    this.eye.
+    M(radius.rotate(-phi)).
+    A(new Vector(this.r), 0, 0, 1, radius.rotate(-this.pRatio*phi)).
+    A(new Vector(this.pRatio*this.r, this.pRatio*this.r), 0, 0, 0, radius.rotate(this.pRatio*phi)).
+    A(new Vector(this.r), 0, 0, 1, radius.rotate(phi)).
+    L(new Vector(0)).Z();
+
+  }
+}
