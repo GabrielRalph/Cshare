@@ -26,7 +26,7 @@ class Syntax extends Highlights{
     this.highlightRegex(/\/\*([^\\]*?)\*\//g, 0, "comments");
     this.highlightRegex(/'\w'/g, 0, "chars");
     this.highlightRegex(/\"[^"]*\"/g, 0, "strings");
-    this.highlightRegex(/\W(\d+)\W/g, 1, "digits");
+    this.highlightRegex(/[^\w\#](\d+)\W/g, 1, "digits");
 
     // this.highlightKeywords(this.doxygen.keyWords, 'key-words');
     // this.highlightKeywords(this.doxygen.types, 'types');

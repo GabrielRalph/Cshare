@@ -75,7 +75,7 @@ class CSyntax extends Syntax{
     highlighter.highlightRegex(/\/\*([^\\]*?)\*\//g, 0, "comments");
     highlighter.highlightRegex(/'\w'/g, 0, "chars");
     highlighter.highlightRegex(/\"[^"]*\"/g, 0, "strings");
-    highlighter.highlightRegex(/\W(\d+)\W/g, 1, "digits");
+    highlighter.highlightRegex(/[^\w\#](\d+)\W/g, 1, "digits");
   }
 }
 

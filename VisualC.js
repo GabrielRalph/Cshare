@@ -18,9 +18,9 @@ class CodeBlock extends SvgPlus{
   build(){
     this._eye = new Eye('svg');
     this.appendChild(this._eye);
-    this._eye.addEventListener('click', () => {
-      this.display = !this.display;
-    }, true)
+    this._eye.onEyeChange = () => {
+        this.display = !this.display;
+    }
 
     this._header = syntax.makeHighlighter('h1');
     this._header.addEventListener('click', () => {
@@ -505,8 +505,11 @@ class Eye extends SvgPlus{
     return this._drawing
   }
 
-  onclick(){
-    this.drawing = !this.drawing;
+  onclick(e){
+    if (!this.drawing){
+      this.drawing = true;
+      if (this.onEyeChange instanceof Function) this.onEyeChange();
+    }
   }
 
   draw(dt){
