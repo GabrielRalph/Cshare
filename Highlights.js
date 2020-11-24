@@ -61,12 +61,12 @@ class Syntax{
 }
 
 class CSyntax extends Syntax{
-  static types = ["char", "const", "double", "enum", "float", "int", "long", "short", "signed", "static", "struct", "typedef", "union", "unsigned", "void", "volatile"];
-  static keyWords = ["auto", "break", "case", "continue", "default", "do", "else", "extern", "for", "goto", "if", "register", "return", "sizeof", "switch", "while"];
   constructor(){
     super();
-    this.add('type', CSyntax.types);
-    this.add('key', CSyntax.keyWords);
+    let types = ["char", "const", "double", "enum", "float", "int", "long", "short", "signed", "static", "struct", "typedef", "union", "unsigned", "void", "volatile"];
+    let keyWords = ["auto", "break", "case", "continue", "default", "do", "else", "extern", "for", "goto", "if", "register", "return", "sizeof", "switch", "while"];
+    this.add('type', types);
+    this.add('key', keyWords);
     this.add('macros', '#define');
     this.add('includes', '#include');
     this.add('pragmas', '#pragma');

@@ -2,25 +2,29 @@
 <html>
   <head>
     <title>MTRX3700 MP</title>
-    <!-- <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inconsolata:wght@500;600;700;900&display=swap" rel="stylesheet" />
 
-    <script src= "https://www.gstatic.com/firebasejs/7.14.4/firebase.js"></script> -->
+    <script src= "https://www.gstatic.com/firebasejs/7.14.4/firebase.js"></script>
     <script src = "https://www.svg.plus/2.js"></script>
     <script src = "https://www.svg.plus/vector.js"></script>
 
-    <script src = "https://tron.w4v.es/Highlights.js"></script>
+    <script type= "text/javascript" src = "./Highlights.js"></script>
+    <script type= "text/javascript" src = "./VisualC.js"></script>
   </head>
   <body>
   </body>
 <script>
 window.addEventListener('error', (e) => {
-  console.log(e.message);
-  alert(e.message);
+  alert(e.message)
 })
 window.onload = () => {
-  alert(Syntax)
-
+  let robot = new Project('div');
+  robot.ref = 'robot';
+  let controller = new Project('div');
+  controller.ref = 'controller';
+  document.body.appendChild(robot);
+  document.body.appendChild(controller);
 }
 
 </script>
@@ -157,6 +161,9 @@ window.onload = () => {
     margin-top: 2em;
   }
   .code-block pre{
+
+    overflow-y: scroll;
+
     margin: 0;
     margin-top: 0.5em;
   }

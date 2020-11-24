@@ -286,7 +286,7 @@ class CodeBlockList extends SvgPlus{
   }
 
   onclick(){
-    this.updateClipboard(`${this}`)
+    // this.updateClipboard(`${this}`)
   }
 
   appendItem(item){
@@ -333,7 +333,7 @@ class Module extends CodeBlockList{
     codeToScopes breaks code up into bodys
     and global defs
   */
-  static codeToScopes(code){
+  codeToScopes(code){
     if (typeof code !== 'string') return null;
     var bodys = [];
     var body = '';
@@ -377,7 +377,7 @@ class Module extends CodeBlockList{
     let methods = new CodeBlockList('div');
     methods.heading = 'Functions';
 
-    var scopes = Module.codeToScopes(code);
+    var scopes = this.codeToScopes(code);
     scopes.forEach((scope, i) => {
       if (scope.scope == 'global'){
         let gcode = scope.code;
@@ -535,8 +535,6 @@ class Project extends SvgPlus{
     }
   }
 
-  static types = ["char", "const", "double", "enum", "float", "int", "long", "short", "signed", "static", "struct", "typedef", "union", "unsigned", "void", "volatile"];
-  static keyWords = ["auto", "break", "case", "continue", "default", "do", "else", "extern", "for", "goto", "if", "register", "return", "sizeof", "switch", "while"];
 }
 
 
@@ -551,7 +549,7 @@ class Eye extends SvgPlus{
     this.drawing = true;
     this.props = {
       viewBox: "-11 -11 22 22",
-      transform: "rotate(90)"
+      // transform: "rotate(90)"
     }
 
 
@@ -644,10 +642,10 @@ class Eye extends SvgPlus{
     this.eye.clear();
 
     this.eye.
-    M(radius.rotate(-phi)).
-    A(new Vector(this.r), 0, 0, 1, radius.rotate(-this.pRatio*phi)).
-    A(new Vector(this.pRatio*this.r, this.pRatio*this.r), 0, 0, 0, radius.rotate(this.pRatio*phi)).
-    A(new Vector(this.r), 0, 0, 1, radius.rotate(phi)).
+    M(radius.rotate(-phi).rotate(Math.PI/2)).
+    A(new Vector(this.r), 0, 0, 1, radius.rotate(-this.pRatio*phi).rotate(Math.PI/2)).
+    A(new Vector(this.pRatio*this.r, this.pRatio*this.r), 0, 0, 0, radius.rotate(this.pRatio*phi).rotate(Math.PI/2)).
+    A(new Vector(this.r), 0, 0, 1, radius.rotate(phi).rotate(Math.PI/2)).
     L(new Vector(0)).Z();
 
   }
