@@ -16,8 +16,12 @@
   </body>
 <script>
 // let fireCShare = new FireCShare('MTRXMP');
-let project = new Project('div');
-document.body.appendChild(project);
+let controller = new Project('div');
+controller.ref = 'controller';
+let robot = new Project('div');
+robot.ref = 'robot';
+document.body.appendChild(controller);
+document.body.appendChild(robot);
 
 // let startWatching = async () => {
 //   let docs = await fireCShare.watchCFiles();
@@ -54,8 +58,11 @@ body{
 .functions{
   --theme: 330;
 }
-.pragma{
+.pragmas{
   --theme: 350;
+}
+.includes{
+  --theme: 200;
 }
 .menu{
   --theme: 230;
@@ -70,8 +77,14 @@ div.list {
   padding: 10px;
   border-radius: 14px;
 }
-.maincontroller{
+.maincontroller, .mainrobot{
   --theme: 0;
+}
+.ir{
+  --theme: 330;
+}
+.encoders{
+  --theme: 210;
 }
 .list h2{
   margin: 0;

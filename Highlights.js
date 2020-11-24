@@ -67,6 +67,9 @@ class CSyntax extends Syntax{
     super();
     this.add('type', CSyntax.types);
     this.add('key', CSyntax.keyWords);
+    this.add('macros', '#define');
+    this.add('includes', '#include');
+    this.add('pragmas', '#pragma');
   }
 
   highlight(highlighter){

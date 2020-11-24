@@ -139,6 +139,26 @@ class CodeBlock extends SvgPlus{
     return this._name;
   }
 
+  set pragmaStart(pragmaStart){
+    this._pragmaStart = pragmaStart;
+    this.update();
+
+
+  }
+  get pragmaStart(){
+    return this._pragmaStart;
+  }
+
+  set pragmaEnd(pragmaEnd){
+    this._pragmaEnd = pragmaEnd;
+    this.update();
+
+
+  }
+  get pragmaEnd(){
+    return this._pragmaEnd;
+  }
+
   set params(params){
     this._params = params;
     this.update();
@@ -180,7 +200,7 @@ class Method extends CodeBlock{
   }
 
   get codeBody(){
-    return `${this.type} ${this.name}(${this.params})${this.body}`
+    return `${this.pragmaStart || ''}${this.type} ${this.name}(${this.params})${this.body}${this.pragmaEnd || ''}`
   }
 
   get doxygenComments(){
@@ -208,16 +228,25 @@ class CodeBlockList extends SvgPlus{
     this.props = {class: "list"};
     this.heading_h2 = this.createChild('h2');
     this.contents = this.createChild('div');
-    this._hidden = false;
+    this.display = false;
     this._size = 0;
     this.heading_h2.onclick = () => {
-      this._hidden = !this._hidden;
-      if (this._hidden){
-        this.removeChild(this.contents);
-      }else{
-        this.appendChild(this.contents)
-      }
+      this.display = !this.display;
+
     }
+  }
+
+  set display(val){
+    if (val){
+      if ( !this.contains(this.contents) ) this.appendChild(this.contents);
+      this._display = true;
+    }else{
+      if ( this.contains(this.contents) ) this.removeChild(this.contents);
+      this._display = false;
+    }
+  }
+  get display(){
+    return this._display
   }
 
   get size(){
@@ -344,17 +373,31 @@ class Module extends CodeBlockList{
         let gcode = scope.code;
 
         //Check for function
-        const m_matches = gcode.match(/(\/\*\*\s*([\W\w]*)\*\/)?\s*(\w+\s*[*]?\s*\w*)\s+(\w+)\s*[(]([^)]*)[)]\s*$/);
+        const m_matches = gcode.match(/(\/\*\*\s*([\W\w]*)\*\/)?\s*(#pragma[^\n]*\n)?\s*(\w+\s*[*]?\s*\w*)\s+(\w+)\s*[(]([^)]*)[)]\s*$/);
         if (m_matches != null && (i + 1 < scopes.length)) {
-
           scopes[i].code = scopes[i].code.replace(m_matches[0], '');
           scopes[i + 1].scope = 'used';
 
           let method = new Method('div');
+
+          //If there are pragma's
+          if (m_matches[3]){
+            method.pragmaStart = m_matches[3];
+            if (i + 2 < scopes.length){
+              const pragma_match = scopes[i + 2].code.match(/(^\s*#pragma[^\n]*)\n/);
+              if (pragma_match != null){
+                method.pragmaEnd = pragma_match[1];
+                scopes[i + 2].code = scopes[i + 2].code.replace(pragma_match[0], '');
+                console.log(m_matches);
+
+              }
+            }
+          }
+
           method.doxygen = m_matches[2];
-          method.type = m_matches[3];
-          method.name = m_matches[4];
-          method.params = m_matches[5];
+          method.type = m_matches[4];
+          method.name = m_matches[5];
+          method.params = m_matches[6];
           method.body = scopes[i + 1].code;
           method.mode = 'doxygenComments';
           methods.appendItem(method);
@@ -405,16 +448,66 @@ class Module extends CodeBlockList{
   }
 }
 
+class InputPlus extends SvgPlus{
 
+  async oninput(e){
+    console.log('x');
+    console.log(e);
+    let files = await this.readFiles(event.target.files);
+    files.forEach((file) => {
+      let fire_name = file.name.replace(/\./g, '_');
+      firebase.database().ref('/tron/robot/' + fire_name).set({
+        code: file.body,
+        name: file.name
+      })
+    });
+
+  }
+  async readFile(file){
+    return new Promise((resolve, reject) => {
+      if (!(file instanceof File)) return;
+      var reader = new FileReader();
+      reader.onload = (event) => {
+        resolve(event.target.result);
+      }
+      reader.readAsText(file);
+      setTimeout(() => {reject(null)}, 10000);
+    })
+  }
+  async readFiles(fileList){
+    let files = [];
+    if (!(fileList instanceof FileList)) return;
+    for (var i = 0; i < fileList.length; i++){
+      try{
+        let res = await this.readFile(fileList[i]);
+        files.push({
+          body: res,
+          name: fileList[i].name
+        })
+      }catch(e){
+        alert(`Error loading files\n${e}`)
+      }
+    }
+    return files;
+  }
+}
 class Project extends SvgPlus{
   build(){
-    this.ref = firebase.database().ref('/tron/controller');
-    this.ref.on('value', (sc) => {
+    this.input = new InputPlus('input');
+    this.input.props = {
+      type: 'file'
+    }
+  }
+  set ref(val){
+    if (typeof val !== 'string') return;
+    this._ref = firebase.database().ref('/tron/' + val);
+    this._ref.on('value', (sc) => {
       this.cFiles = sc.val();
     })
   }
   set cFiles(object){
     this.innerHTML = '';
+    this.appendChild(this.input);
     if (typeof object !== 'object') return;
     for (var name in object){
         let mod = object[name];
