@@ -1,0 +1,1041 @@
+/*
+ * File:   controllerMain.c
+ * Author: charlottepearce
+ *
+ * Created on November 15, 2020, 10:05 AM
+ */
+
+#include "ConfigRegsPIC18F452.h"
+//#include "Headers.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "delays.h"
+#include <p18f452.h>
+#define FRAME_BUFFER_SIZE 6
+
+
+typedef struct{
+    char x;
+    char y;
+    char z;
+}Vector;
+
+char FrameBuffer[FRAME_BUFFER_SIZE];
+unsigned char FrameHead = 0;
+unsigned char NewCmdFlag = 0;
+
+union{
+    struct{
+        char V;
+        Vector vector;
+        char z2;
+    };
+    struct{
+        char S;
+        unsigned char mu1;
+        unsigned char var1;
+        unsigned char mu2;
+        unsigned char var2;
+    };
+    struct{
+        char D;
+        char mpwl;
+        char mpwr;
+        char spr1;
+        char spr2;
+    };
+    struct{
+        char C;
+        unsigned char index;
+        unsigned char value;
+        char spr3;
+        char spr4;
+    };
+    char array[FRAME_BUFFER_SIZE - 1];
+} XBeeCmd;
+
+typedef union{
+    unsigned char cmd;
+
+    struct {
+        unsigned blinkOn:1;
+        unsigned cursorOn:1;
+        unsigned displayOn:1;
+        unsigned :5;
+    };
+    struct {
+        unsigned addressDD: 7;
+        unsigned :1;
+    };
+
+    struct {
+        unsigned addressCG: 6;
+        unsigned :2;
+    };
+
+    struct {
+        unsigned :2;
+        unsigned fontType:1;
+        unsigned twoLine:1;
+        unsigned eightBit:1;
+        unsigned :3;
+    };
+
+    struct{
+        unsigned shiftDisplay: 1;
+        unsigned direction: 1;
+        unsigned :6;
+    };
+    struct{
+        unsigned :2;
+        unsigned dir: 1;
+        unsigned dispOrCursor: 1;
+        unsigned :4;
+    };
+} LcdCmd;
+
+typedef union MenuItem{
+    struct{
+
+        union MenuItem * up;
+        union MenuItem * down;
+        union MenuItem * left;
+        union MenuItem * right;
+
+        char index;
+        unsigned char value;
+        unsigned char setterMax;
+
+        char display[16];
+
+    };
+} MenuItem;
+
+// LCD -----------------------------------------------------
+#define DISPLAY     0b00001000
+#define DDRAM       0b10000000
+#define FUNCTION    0b00100000
+#define CLEAR       0b00000001
+#define HOME        0b00000010
+#define ENTRYMODE   0b00000100
+#define SHIFT       0b00010000
+#define CGRAM       0b01000000
+
+#define FONT_5x8 0
+#define FONT_5x11 1
+#define RIGHT 1
+#define LEFT 0
+#define FALSE 0
+
+#define E(x) PORTCbits.RC0 = x;
+#define RW(x) PORTCbits.RC2 = x;
+#define RS(x) PORTCbits.RC1 = x;
+
+void lcdRunCmd(LcdCmd);
+void lcdSetCursorPosition(unsigned char, unsigned char);
+
+void initLcd(void);
+void lcdClear(void);
+
+void lcdSendDate(char);
+void delayMicros(unsigned char);
+void lcdPrintString(char arr[], unsigned char pos, unsigned char line);
+void delay(unsigned int);
+void lcdPrintChar(char a, char pos, char line);
+void lcdPrintMenuItem(MenuItem menuItem, char row);
+void lcdSetCursorOn(char cursorOn, char blinkOn);
+void lcdPrintVector(Vector vector, char line_num);
+void lcdPrintRandom(char arr[], char line);
+void lcdPrintXBeeCmd(void);
+// Joysticks -----------------------------------------------------
+#define TOL 12
+#define MTL 50
+#define CTL 30
+
+void initADC(void);
+unsigned char analogRead(char channel);
+Vector getJoystick(char dir);
+char getVDirection(Vector vector);
+Vector sanitizeV(Vector v);
+// Menu -----------------------------------------------------
+
+#define PID_P_DEFAULT 1;
+#define PID_I_DEFAULT 1;
+#define PID_D_DEFAULT 1;
+
+#pragma udata udata1
+MenuItem config;
+MenuItem factory;
+MenuItem pid;
+MenuItem pid_p;
+MenuItem pid_i;
+MenuItem pid_d;
+#pragma udata udata2
+MenuItem yaw;
+MenuItem display;
+MenuItem ir;
+MenuItem ir_samples;
+MenuItem ir_srate;
+MenuItem speed;
+MenuItem manual;
+MenuItem assist;
+#pragma udata
+
+MenuItem * moveMenu(MenuItem * current, char dir);
+void editMenuItemValue(MenuItem * current);
+void editDisplay(MenuItem * displayItem);
+void printSetterMaxError(MenuItem * current, unsigned int newValue);
+void mainMenu(void);
+void initMenu(void);
+void xBeeSetConfig(MenuItem * current);
+
+// XBee -----------------------------------------------------
+
+#define TRUE 1
+#define FALSE 0
+
+int index;
+char startReading;
+Vector velocity3;
+char outputString[32];
+char string[100];
+
+void configureUART(void);
+void configureUARTInterrupts(void);
+void xBeeSend(char * string);
+char * xBeeSave(void);
+
+void xBeeWrite(char);
+void xBeePrintDisplay(void);
+char xBeeHasNewCmd(void);
+void xBeeInitFrameBuffer(void);
+void xBeeAddFrame(char byte);
+char xBeeFrameStatus(void);
+//void xBeeOnReceive(void);
+void highPriorityISR(void);
+void xBeeTransmitCmd(void);
+void xBeeWrite(char);
+void xBeeReadCmdByte(void);
+
+char startReading;
+char readValues[33];
+/*
+ *
+ */
+void drive(){
+    char testy[16];
+    char rec;
+
+    Vector vLeft;
+    Vector vRight;
+    Vector velocity;
+
+    char driving = 1;
+    unsigned int overflow = 0;
+
+    while(driving){
+
+        //Get velocity vector from joysticks
+        vLeft = getJoystick('l');
+        vRight = getJoystick('r');
+
+        velocity.z = vLeft.z;
+        velocity.x = vLeft.x;
+        velocity.y = vRight.y;
+
+        //If exit button pressed
+        if (PORTBbits.RB1 != 0){
+            velocity.x = 0;
+            velocity.y = 0;
+            driving = 0;
+        }else{
+            delay(50);
+
+        }
+
+        //Sanitize and transmit
+        XBeeCmd.vector = sanitizeV(velocity);
+        XBeeCmd.V = 'V';
+        xBeeTransmitCmd();
+        lcdClear();
+
+        sprintf(testy, "%c: %4d, %c: %4d", 0b11100100, 20 + (rand() %50), 0b11100101, 20 + (rand() % 12));
+
+        lcdPrintVector(XBeeCmd.vector, 0);
+        lcdPrintString(testy, 0, 1);
+    }
+}
+
+
+void main(void) {
+    char ff[] =  "  hey,  David,  ";
+    char ff2[] = " Avie and Yiwei ";
+    TRISB = 3;
+
+
+    initADC();
+    configureUART();
+    initMenu();
+//    configureUARTInterrupts();
+    initLcd();
+    lcdPrintRandom(ff, 0);
+    lcdPrintRandom(ff2, 1);
+
+    delay(100);
+    lcdClear();
+
+    while(1){
+        lcdClear();
+        mainMenu();
+        drive();
+    }
+
+}
+
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Lcd.c ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void lcdSendData(char value){
+    RS(1);
+    RW(0);
+
+    E(0);
+    E(1);
+
+    delayMicros(1);
+
+    PORTD = value;
+
+    delayMicros(1);
+
+    E(0);
+
+    delayMicros(37);
+}
+/***~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**
+ *
+ **~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**/
+void initLcd(void){
+    LcdCmd lcdSet;
+
+    TRISD = 0;
+    TRISC = 0;
+    PORTC = 0;
+
+    delay(40);
+
+    lcdSet.cmd = FUNCTION;
+    lcdSet.eightBit = 1;
+    lcdSet.twoLine = 1;
+    lcdSet.fontType = FONT_5x8;
+    lcdRunCmd(lcdSet);
+    lcdRunCmd(lcdSet);
+
+
+    lcdSet.cmd = DISPLAY;
+    lcdSet.displayOn = 1;
+    lcdSet.cursorOn = 0;
+    lcdSet.blinkOn = 0;
+    lcdRunCmd(lcdSet);
+
+    lcdSet.cmd = CLEAR;
+    lcdRunCmd(lcdSet);
+
+    lcdSet.cmd = ENTRYMODE;
+    lcdSet.shiftDisplay = 0;
+    lcdSet.direction = RIGHT;
+    lcdRunCmd(lcdSet);
+}
+
+/***~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**
+ *
+ **~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**/
+void lcdRunCmd(LcdCmd lcdSet){
+    RW(0);
+    RS(0);
+
+    E(0);
+    E(1);
+
+    delayMicros(1);
+
+    PORTD = lcdSet.cmd;
+
+    delayMicros(1);
+
+    E(0);
+
+    delayMicros(37);
+    if (lcdSet.cmd < 4) delay(2);
+}
+
+/***~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**
+ *
+ **~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**/
+void delayMicros(unsigned char micros){
+    Delay10TCYx(micros);
+}
+
+/***~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**
+ *
+ **~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~*~**/
+void delay(unsigned int milliseconds){
+    unsigned int reps = milliseconds/255;
+    unsigned int i = 0;
+
+    if (milliseconds == 0) return;
+
+    milliseconds -= 255 * reps;
+    for (i = 0; i < reps; i++) Delay10KTCYx(255);
+    Delay10KTCYx(milliseconds);
+}
+
+void lcdSetCursorPosition(unsigned char pos, unsigned char line){
+    LcdCmd lcdSet;
+
+
+    //Set DDRAM Address
+    lcdSet.cmd = DDRAM;
+    lcdSet.addressDD = pos + 64*line;
+    lcdRunCmd(lcdSet);
+}
+
+void lcdClear(void){
+    LcdCmd lcdSet;
+
+
+    //Set DDRAM Address
+    lcdSet.cmd = CLEAR;
+    lcdRunCmd(lcdSet);
+}
+
+void lcdPrintRandom(char arr[], char line){
+    int r;
+    int rndm;
+    int index;
+
+    srand(123832423);
+    for (r = 15; r >= 0; r--){
+        rndm = rand() % r;
+        index = 0;
+        while(rndm){
+            if (arr[index]) rndm--;
+            index ++;
+        }
+
+        while (!arr[index] && index < 16) index++;
+
+        if (!arr[index]) return;
+
+        lcdPrintChar(arr[index], index, line);
+        arr[index] = 0;
+        delay(35);
+    }
+}
+
+void lcdPrintXBeeCmd(void){
+    char line1[16];
+    char line2[16];
+
+    if (XBeeCmd.D != 'D') return;
+    switch (display.value){
+        case 1:
+            sprintf(line1, "mu: %3d var: %3d", XBeeCmd.mu1, XBeeCmd.var1);
+            sprintf(line2, "mu: %3d var: %3d", XBeeCmd.mu2, XBeeCmd.var2);
+            break;
+        case 2:
+            sprintf(line1, "motor left %3d", XBeeCmd.mpwl);
+            sprintf(line2, "motor right %3d", XBeeCmd.mpwr);
+            break;
+    }
+    lcdPrintString(line1, 0, 0);
+    lcdPrintString(line2, 0, 1);
+}
+
+
+
+void lcdPrintString(char arr[], unsigned char pos, unsigned char line){
+    char c;
+
+    lcdSetCursorPosition(pos, line);
+
+    while(c = * (arr ++)){
+        lcdSendData(c);
+    }
+}
+
+void lcdShiftDisplay(unsigned char delay_time, char direction){
+    LcdCmd lcdSet;
+
+    lcdSet.cmd = SHIFT;
+    lcdSet.dir = direction;
+    lcdSet.dispOrCursor = 1;
+
+    for (direction = 0; direction < 16; direction++){
+        lcdRunCmd(lcdSet);
+        if (delay_time != 0)  delay(delay_time);
+    }
+}
+
+void lcdPrintChar(char a, char pos, char line){
+    lcdSetCursorPosition(pos, line);
+    lcdSendData(a);
+}
+
+void lcdSetCursorOn(char cursorOn, char blinkOn){
+    LcdCmd lcdSet;
+    lcdSet.cmd = DISPLAY;
+    lcdSet.displayOn = 1;
+    lcdSet.cursorOn = cursorOn;
+    lcdSet.blinkOn = blinkOn;
+    lcdRunCmd(lcdSet);
+}
+
+void lcdPrintMenuItem(MenuItem menuItem, char col){
+    if (col == 1) col = 16;
+    lcdPrintString(menuItem.display, col, 0);
+    lcdPrintString(menuItem.down->display, col, 1);
+}
+
+void lcdPrintVector(Vector vector, char line_num){
+    char line[16];
+    sprintf(line, "x%-4d y%-4d z%d", vector.x,  vector.y, vector.z, getVDirection(vector));
+    lcdPrintString(line, 0, line_num);
+}
+
+void lcdPrintSetterMaxError(MenuItem * current, unsigned int newValue){
+    char error[16];
+    char error2[16];
+
+    sprintf(error, "Error: max %3d", current->setterMax);
+    sprintf(error2, "but value %3d", newValue);
+
+    lcdClear();
+    lcdPrintString(error, 0, 0);
+    lcdPrintString(error2, 0, 1);
+
+    delay(800);
+
+    lcdClear();
+    lcdSetCursorOn(0, 0);
+    lcdPrintString(current->display, 0, 0);
+    lcdPrintString(current->down->display, 0, 1);
+
+}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Menu.c ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MenuItem * moveMenu(MenuItem * current, char dir){
+    MenuItem * newItem = current;
+    unsigned int delayTime = 0;
+
+    switch(dir){
+        case 'd':
+            newItem = current->down;
+            delayTime = 100;
+            break;
+
+        case 'u':
+            newItem = current->up;
+            delayTime = 100;
+            break;
+
+        case 'r':
+            if (current->right == NULL) return current;
+            newItem = current->right;
+            if (current == &factory && PORTBbits.RB0 == 0) return current;
+            lcdPrintMenuItem(* newItem, 1);
+            lcdShiftDisplay(5, LEFT);
+            break;
+
+        case 'l':
+            if (current->left == NULL) return current;
+            newItem = current->left;
+            lcdShiftDisplay(0, LEFT);
+            lcdPrintMenuItem(* newItem, 0);
+            lcdPrintMenuItem(* current, 1);
+            lcdShiftDisplay(5, RIGHT);
+            break;
+
+        default: return newItem;
+
+    }
+    lcdClear();
+    lcdPrintMenuItem(* newItem, 0);
+    delay(delayTime);
+    return newItem;
+}
+
+void initMenu(void){
+    char none[] = "None";
+    strcpypgm2ram(config.display, "Configuration");
+    config.index = -1;
+
+    strcpypgm2ram(factory.display, "Factory mode");
+    factory.index = -1;
+
+        strcpypgm2ram(pid.display, "Configure PID");
+        pid.index = -1;
+
+            //PID setters
+            pid_p.setterMax = 100;
+            pid_p.value = PID_P_DEFAULT;
+            sprintf(pid_p.display, "Proportional %3d", pid_p.value);
+            pid_p.index = 0;
+
+            pid_i.setterMax = 100;
+            pid_i.value = PID_I_DEFAULT;
+            sprintf(pid_i.display, "Integral     %3d", pid_i.value);
+            pid_i.index = 1;
+
+            pid_d.setterMax = 100;
+            pid_d.value = PID_D_DEFAULT;
+            sprintf(pid_d.display, "Differential  %d", pid_d.value);
+            pid_d.index = 2;
+
+        yaw.setterMax = 100;
+        yaw.value = 100;
+        sprintf(yaw.display, "Set max yaw  %3d", yaw.value);
+        yaw.index = 3;
+
+        ir.setterMax = 0;
+        ir.value = 0;
+        strcpypgm2ram(ir.display, "Configure IR");
+        ir.index = -1;
+
+        ir_srate.setterMax = 100;
+        ir_srate.value = 23;
+        sprintf(ir_srate.display, "Samples%9d", ir_srate.value);
+        ir_srate.index = 7;
+
+        ir_samples.setterMax = 40;
+        ir_samples.value = 40;
+        sprintf(ir_samples.display, "Sample Rate%5d", ir_samples.value);
+        ir_samples.index = 6;
+
+        display.setterMax = 3;
+        display.value = 0;
+        sprintf(display.display, "Display   %6s", none);
+        display.index = 4;
+
+
+    speed.value = 100;
+    speed.setterMax = 120;
+    sprintf(speed.display, "Max speed    %3d", speed.value);
+    speed.index = 5;
+
+    strcpypgm2ram(manual.display, "Manual mode");
+    manual.index = -1;
+
+    strcpypgm2ram(assist.display, "Assist mode");
+    assist.index = -1;
+
+    config.up = &assist;
+    config.left = NULL;
+    config.down = &manual;
+
+    config.right = &factory;
+    factory.left = &config;
+    speed.left = &config;
+
+        factory.up = &speed;
+        factory.down = &speed;
+
+        factory.right = &pid;
+        pid.left = &factory;
+        yaw.left = &factory;
+        display.left = &factory;
+        ir.left = &factory;
+
+
+            pid.up = &display;
+            pid.down = &yaw;
+
+            pid.right = &pid_p;
+            pid_p.left = &pid;
+            pid_i.left = &pid;
+            pid_d.left = &pid;
+
+                pid_p.up = &pid_d;
+                pid_p.down = &pid_i;
+                pid_p.right = NULL;
+
+                pid_i.up = &pid_p;
+                pid_i.down = &pid_d;
+                pid_i.right = NULL;
+
+                pid_d.up = &pid_i;
+                pid_d.down = &pid_p;
+                pid_d.right = NULL;
+
+            yaw.up = &pid;
+            yaw.down = &ir;
+            yaw.right = NULL;
+
+            ir.up = &yaw;
+            ir.down = &display;
+            ir.right = &ir_samples;
+
+            ir_samples.left = &ir;
+            ir_samples.right = NULL;
+            ir_samples.up = &ir_srate;
+            ir_samples.down = &ir_srate;
+
+            ir_srate.left = &ir;
+            ir_srate.right = NULL;
+            ir_srate.down = &ir_samples;
+            ir_srate.up = &ir_samples;
+
+
+            display.up = &ir;
+            display.down = &pid;
+            display.right = NULL;
+
+
+//            showData.up = &showStats;
+//            showData.down = &pid;
+//            showData.right = NULL;
+
+        speed.up = &factory;
+        speed.down = &factory;
+        speed.right = NULL;
+
+    manual.up = &config;
+    manual.down = &assist;
+    manual.right = NULL;
+    manual.left = NULL;
+
+    assist.up = &manual;
+    assist.down = &config;
+    assist.right = NULL;
+    assist.left = NULL;
+
+}
+
+void mainMenu(void){
+    Vector joystick_l;
+    Vector joystick_r;
+    char direction = 0;
+
+    MenuItem * current = &config;
+    MenuItem * oldMenu = current;
+
+
+    char inMenu = 1;
+
+
+    lcdPrintMenuItem(* current, 0);
+
+    while(inMenu){
+        joystick_l = getJoystick('l');
+        joystick_r = getJoystick('r');
+
+        direction = getVDirection(joystick_l);
+
+        if (joystick_l.z && current->index >= 0){
+            if (current == &display){
+                editDisplay(current);
+            }else{
+                editMenuItemValue(current);
+            }
+        }
+        if (joystick_l.z && current == &manual){
+            XBeeCmd.C = 'C';
+            XBeeCmd.index = 8;
+            XBeeCmd.value = 1;
+            inMenu = 0;
+        }
+        if (joystick_l.z && current == &assist){
+            XBeeCmd.C = 'C';
+            XBeeCmd.index = 8;
+            XBeeCmd.value = 2;
+            inMenu = 0;
+        }
+
+        current = moveMenu(current, direction);
+        delay(20);
+    }
+    xBeeTransmitCmd();
+}
+
+void editDisplay(MenuItem * displayItem){
+    char options[3][7] = {"None", "Stats", "Motors"};
+    char indx = 0;
+    char direction;
+    Vector v;
+
+
+    v = getJoystick('l');
+    while (v.z){
+        v = getJoystick('l');
+    }
+    delay(100);
+
+    while (v.z == 0){
+
+        switch(direction){
+            case 'u':
+                indx = (indx + 1) % 3;
+                break;
+            case 'd':
+                indx = (indx + 2) % 3;
+                break;
+        }
+        if (direction == 'u' || direction == 'd'){
+            sprintf(displayItem->display, "Display   %6s", options[indx]);
+            lcdPrintString(displayItem->display, 0, 0);
+            displayItem->value = indx;
+
+            delay(100);
+        }
+        v = getJoystick('l');
+        direction = getVDirection(v);
+    }
+
+    XBeeCmd.C = 'C';
+    XBeeCmd.index = displayItem->index;
+    XBeeCmd.value = displayItem->value;
+    xBeeTransmitCmd();
+}
+
+void editMenuItemValue(MenuItem * current){
+  unsigned char digits[3];
+  unsigned char indx = 0;
+  unsigned int newValue;
+  char direction;
+  char dig_max = 10;
+  Vector v;
+
+  //Turn cursor on and set its position to
+  lcdSetCursorOn(1, 0);
+  lcdSetCursorPosition(15 - indx, 0);
+
+  v = getJoystick('r');
+  while (v.z) v = getJoystick('r');
+  delay(100);
+
+
+  digits[2] = current->value/100;
+  digits[1] = (current->value - digits[2]*100)/10;
+  digits[0] = (current->value - digits[1]*10 - digits[2]*100);
+
+  while(v.z == 0){
+    direction = getVDirection(v);
+    dig_max = 10;
+
+    switch (direction){
+      case 'u':
+        digits[indx] = (digits[indx] + 1)%dig_max;
+        break;
+
+      case 'd':
+        digits[indx] = (dig_max - 1 + digits[indx])%dig_max;
+        break;
+
+      case 'l':
+        indx = (indx + 1)%3;
+        break;
+
+      case 'r':
+        indx = (2 + indx)%3;
+        break;
+    }
+    if (direction != 0){
+      lcdPrintChar(digits[indx] + 48, 15 - indx, 0);
+      lcdSetCursorPosition(15 - indx, 0);
+      delay(100);
+
+    }
+    v = getJoystick('l');
+  }
+  lcdSetCursorOn(0, 0);
+
+  //Calculate the value
+  newValue = digits[2]*100 + digits[1]*10 + digits[0];
+  if (newValue > current->setterMax){
+      lcdPrintSetterMaxError(current, newValue);
+      return;
+  }
+
+  //Set the menu item value and update the display string
+  current->value = newValue;
+  current->display[13] = 0;
+  sprintf(current->display, "%s%3d", current->display, current->value);
+
+  //Send value through xBee
+   XBeeCmd.C = 'C';
+   XBeeCmd.index = current->index;
+   XBeeCmd.value = current->value;
+   xBeeTransmitCmd();
+
+
+  //Print menu and remove cursor
+  lcdPrintMenuItem(* current, 0);
+  delay(300);
+}
+
+
+
+
+
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Joystick.c ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void initADC(void){
+    TRISA  = 0xff;            // PORT A Set as Input Port
+
+}
+
+unsigned char analogRead(char channel){
+    ADCON0bits.ADCS = 1;      // Fosc/8 clock conversion
+    ADCON1bits.ADCS2 = 0;      // Fosc/8 clock conversion
+
+    ADCON1bits.ADFM = 0;      // Left Justified
+    ADCON1bits.PCFG = 0b1001; // Use all 6 analog pins and Vdd and Vcc as ref
+
+    ADCON0bits.CHS = channel; // Set channel
+
+    ADCON0bits.ADON = 1;      // Power up ADC
+
+    Delay10TCYx(150);         // wait acquisition time
+
+    ADCON0bits.GO = 1;        // Start AD Conversion
+
+    while(ADCON0bits.GO == 1);// Wait for ADC Conversion to complete
+
+    return ADRESH;            // Output ADC Result
+}
+
+Vector getJoystick(char dir){
+    Vector v1;
+    unsigned char z;
+    v1.z = 0;
+
+    if (dir == 'l'){
+        v1.x = analogRead(1) - 128;
+        v1.y = analogRead(2) - 128;
+        z = analogRead(0);
+        if (z > 50) v1.z = 1;
+    }else if (dir == 'r'){
+        v1.x = analogRead(4) - 128;
+        v1.y = analogRead(5) - 128;
+        z = analogRead(3);
+        if (z > 50) v1.z = 1;
+    }
+    return v1;
+}
+
+char getVDirection(Vector vector){
+    if (vector.x > MTL && vector.y > -CTL && vector.y < CTL) return 'l';
+    if (vector.x < -MTL && vector.y > -CTL && vector.y < CTL) return 'r';
+    if (vector.y > MTL && vector.x > -CTL && vector.x < CTL) return 'u';
+    if (vector.y < -MTL && vector.x > -CTL && vector.x < CTL) return 'd';
+    return 0;
+}
+
+Vector sanitizeV(Vector v){
+    if (v.x == -128) v.x = -127;
+    if (v.y == -127) v.y = -127;
+    if (v.x < TOL && v.x > -TOL) v.x = 0;
+    if (v.y < TOL && v.y > -TOL) v.y = 0;
+    return v;
+}
+
+
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ XBee.c ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+void configureUART(void){
+
+    TXSTAbits.BRGH = 1; // high speed mode (y=16)
+    SPBRG = 64;          // X = (10^7/9600*16) -1   = 64.1
+    TXSTAbits.SYNC = 0; // Asynchronous mode
+    RCSTAbits.SPEN = 1; // Enable serial port
+
+    TXSTAbits.TX9 = 0;  // Enable 8 bit transmission
+    TXSTAbits.TXEN = 1; // Enable transmit
+    RCSTAbits.RX9 = 0;  // 8 bit receive
+    RCSTAbits.CREN = 1; // receive enabled
+
+    TRISCbits.RC6 = 0;  // Enable Pin 6 as output to transmit serial output from XBee
+    TRISCbits.RC7 = 1;  // Enable pin 7 as input to receive to XBee
+
+}
+
+
+void configureUARTInterrupts(void){
+
+    INTCONbits.GIEH = 0; // Disable Interrupts
+    INTCONbits.GIEL = 0; // Disable Peripheral interrupts
+    RCONbits.IPEN = 1;   // Enable Priority
+    PIE1bits.RCIE = 1;   // Enable USART Receive Interrupt
+    IPR1bits.RCIP = 1;   // Enable High Priority on receive interrupt *
+    INTCONbits.GIEH = 1;
+    INTCONbits.GIEL = 1; // Re-enable interrupts
+    INTCONbits.PEIE = 1;
+
+}
+
+
+char xBeeHasNewCmd(){
+    if (NewCmdFlag){
+        NewCmdFlag = 0;
+        return 1;
+    }
+    return 0;
+}
+
+void xBeeWrite(char val){
+  while(PIR1bits.TXIF == 0);
+  TXREG = val;
+}
+void xBeeTransmitCmd(void){
+    int i;
+    for (i = 0; i < 4; i++){
+        xBeeWrite(XBeeCmd.array[i]);
+    }
+}
+
+char xBeeBuffer[4];
+char xBeeIsReading = FALSE;
+char xBeeBufferHead = 0;
+void xBeeReadCmdByte(void){
+    char currentChar;
+    while(PIR1bits.RCIF == 0);
+    currentChar = RCREG;
+
+    if(currentChar == 'S' && !xBeeIsReading){
+        xBeeIsReading == TRUE;
+        xBeeBufferHead = 0;
+        return;
+    }
+    if (!xBeeIsReading) return;
+
+    xBeeBuffer[xBeeBufferHead ++] = currentChar;
+
+    if (xBeeBufferHead == 4){
+        lcdClear();
+        for (xBeeBufferHead = 0; xBeeBufferHead < 4; xBeeBufferHead++){
+            lcdPrintChar(xBeeBuffer[xBeeBufferHead], xBeeBufferHead, 0);
+        }
+        xBeeBufferHead = 0;
+        xBeeIsReading = FALSE;
+        delay(100);
+    }
+}
